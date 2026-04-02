@@ -53,7 +53,7 @@ def generate_launch_description():
     
     # 创建一键运行脚本命令
     run_command = [
-        'python',
+        'python3',
         os.path.join(project_root, 'run_tool.py'),
         '--mode', 'all',
         '--topics', LaunchConfiguration('topics'),

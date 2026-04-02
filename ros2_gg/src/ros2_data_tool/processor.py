@@ -99,29 +99,37 @@ class DataProcessor:
         return pd.DataFrame(flat_messages)
     
     def _flatten_dict(self, d: Dict, parent_key: str = '', sep: str = '_') -> Dict:
-        """扁平化字典"""
-        items = []
-        for k, v in d.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-            if isinstance(v, dict) and v:
-                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
-            elif isinstance(v, list):
-                for i, item in enumerate(v):
-                    if isinstance(item, (dict, list)):
-                        items.extend(self._flatten_dict({f"{k}_{i}": item}, parent_key, sep=sep).items())
-                    else:
-                        items.append((f"{new_key}_{i}", item))
-            else:
-                items.append((new_key, v))
-        return dict(items)
+        """扁平化字典 - 优化版本"""
+        items = {}
+        
+        def _flatten(current_dict, current_key):
+            for k, v in current_dict.items():
+                new_key = f"{current_key}{sep}{k}" if current_key else k
+                if isinstance(v, dict) and v:
+                    _flatten(v, new_key)
+                elif isinstance(v, list):
+                    for i, item in enumerate(v):
+                        item_key = f"{new_key}_{i}"
+                        if isinstance(item, (dict, list)):
+                            _flatten({item_key: item}, '')
+                        else:
+                            items[item_key] = item
+                else:
+                    items[new_key] = v
+        
+        _flatten(d, parent_key)
+        return items
     
     def _convert_from_dataframe(self, df: pd.DataFrame) -> List[Dict]:
-        """将DataFrame转换回原始格式"""
+        """将DataFrame转换回原始格式 - 优化版本"""
         result = []
         
-        for _, row in df.iterrows():
-            timestamp = row.pop('timestamp')
-            message = self._unflatten_dict(row.to_dict())
+        # 预先转换为字典列表，减少循环中的操作
+        records = df.to_dict('records')
+        
+        for record in records:
+            timestamp = record.pop('timestamp', None)
+            message = self._unflatten_dict(record)
             result.append({
                 'timestamp': timestamp,
                 'message': message

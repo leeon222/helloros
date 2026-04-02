@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python33
 """ROS2自动化数据采集与处理工具 - 一键运行脚本"""
 
 import os
@@ -11,12 +11,16 @@ import time
 def run_command(command, cwd=None):
     """运行命令并返回结果"""
     print(f"Running: {command}")
-    result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error: {result.stderr}")
+    try:
+        result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Error: {result.stderr}")
+            return False
+        print(f"Output: {result.stdout}")
+        return True
+    except Exception as e:
+        print(f"Exception occurred: {e}")
         return False
-    print(f"Output: {result.stdout}")
-    return True
 
 
 def main():
@@ -57,7 +61,7 @@ def main():
             print("Error: --topics is required for collect mode")
             return
         
-        cmd = f"python {os.path.join(script_dir, 'collector.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'collector.py')}"
         cmd += f" --topics {' '.join(args.topics)}"
         cmd += f" --output {args.output}"
         if args.duration:
@@ -66,7 +70,7 @@ def main():
         run_command(cmd)
     
     elif args.mode == 'process':
-        cmd = f"python {os.path.join(script_dir, 'processor.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'processor.py')}"
         cmd += f" --input {args.output}"
         cmd += f" --output {os.path.join(os.path.dirname(args.output), 'processed')}"
         if args.sync:
@@ -78,7 +82,7 @@ def main():
     
     elif args.mode == 'visualize':
         processed_dir = os.path.join(os.path.dirname(args.output), 'processed')
-        cmd = f"python {os.path.join(script_dir, 'visualizer.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'visualizer.py')}"
         cmd += f" --input {processed_dir}"
         cmd += f" --output {os.path.join(os.path.dirname(args.output), 'visualizations')}"
         
@@ -90,7 +94,7 @@ def main():
             return
         
         processed_dir = os.path.join(os.path.dirname(args.output), 'processed')
-        cmd = f"python {os.path.join(script_dir, 'exporter.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'exporter.py')}"
         cmd += f" --input {processed_dir}"
         cmd += f" --output {os.path.join(os.path.dirname(args.output), 'exports')}"
         cmd += f" --format {args.format}"
@@ -104,7 +108,7 @@ def main():
         
         # 数据采集
         print("\n=== Step 1: Data Collection ===")
-        cmd = f"python {os.path.join(script_dir, 'collector.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'collector.py')}"
         cmd += f" --topics {' '.join(args.topics)}"
         cmd += f" --output {args.output}"
         if args.duration:
@@ -116,7 +120,7 @@ def main():
         # 数据预处理
         print("\n=== Step 2: Data Processing ===")
         processed_dir = os.path.join(os.path.dirname(args.output), 'processed')
-        cmd = f"python {os.path.join(script_dir, 'processor.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'processor.py')}"
         cmd += f" --input {args.output}"
         cmd += f" --output {processed_dir}"
         if args.sync:
@@ -130,7 +134,7 @@ def main():
         # 数据可视化
         print("\n=== Step 3: Data Visualization ===")
         visualizations_dir = os.path.join(os.path.dirname(args.output), 'visualizations')
-        cmd = f"python {os.path.join(script_dir, 'visualizer.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'visualizer.py')}"
         cmd += f" --input {processed_dir}"
         cmd += f" --output {visualizations_dir}"
         
@@ -141,7 +145,7 @@ def main():
         print("\n=== Step 4: Data Export ===")
         exports_dir = os.path.join(os.path.dirname(args.output), 'exports')
         export_format = args.format if args.format else 'csv'
-        cmd = f"python {os.path.join(script_dir, 'exporter.py')}"
+        cmd = f"python3 {os.path.join(script_dir, 'exporter.py')}"
         cmd += f" --input {processed_dir}"
         cmd += f" --output {exports_dir}"
         cmd += f" --format {export_format}"
@@ -152,4 +156,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        sys.exit(1)
