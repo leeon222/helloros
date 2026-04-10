@@ -1,0 +1,22 @@
+# ROS2自动化数据采集工具 - 配置文件示例
+# 使用方法: python3 run_tool.py --config config_example.yaml
+
+# 运行模式: collect, process, visualize, export, all
+mode: all
+
+# 数据采集参数
+topics:
+  - /scan
+  - /odom
+  - /imu/data
+duration: 30.0
+
+# 通用参数
+output: ./data
+
+# 预处理参数
+sync: true
+frequency: 10.0
+
+# 导出参数
+format: csv
