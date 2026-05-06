@@ -50,8 +50,9 @@ class DataVisualizer:
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
             
-            # 从文件名提取话题名
-            topic_name = file.split('_')[0]
+            base = file.replace('.pkl', '')
+            parts = base.rsplit('_', 2)
+            topic_name = parts[0] if len(parts) >= 3 else base
             self._data[topic_name] = data
         
         print(f"Loaded data for {len(self._data)} topics")
@@ -208,20 +209,35 @@ class DataVisualizer:
         for item in data:
             msg = item['message']
             timestamp = item['timestamp']
-            
-            if 'angular_velocity' in msg:
+
+            has_angular = 'angular_velocity' in msg
+            has_linear = 'linear_acceleration' in msg
+
+            if has_angular:
                 angular = msg['angular_velocity']
                 angular_vel_x.append(angular.get('x', 0))
                 angular_vel_y.append(angular.get('y', 0))
                 angular_vel_z.append(angular.get('z', 0))
-            
-            if 'linear_acceleration' in msg:
+
+            if has_linear:
                 linear = msg['linear_acceleration']
                 linear_acc_x.append(linear.get('x', 0))
                 linear_acc_y.append(linear.get('y', 0))
                 linear_acc_z.append(linear.get('z', 0))
-            
-            timestamps.append(timestamp)
+
+            if has_angular or has_linear:
+                timestamps.append(timestamp)
+
+        min_len = min(len(timestamps),
+                      len(angular_vel_x) if angular_vel_x else len(timestamps),
+                      len(linear_acc_x) if linear_acc_x else len(timestamps))
+        timestamps = timestamps[:min_len]
+        angular_vel_x = angular_vel_x[:min_len]
+        angular_vel_y = angular_vel_y[:min_len]
+        angular_vel_z = angular_vel_z[:min_len]
+        linear_acc_x = linear_acc_x[:min_len]
+        linear_acc_y = linear_acc_y[:min_len]
+        linear_acc_z = linear_acc_z[:min_len]
         
         # 创建图形
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))

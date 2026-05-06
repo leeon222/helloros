@@ -64,14 +64,37 @@ class DataCollector:
         print(f"Error: Failed to create subscriber for topic {topic} after {max_retries} attempts")
     
     def _get_message_type_for_topic(self, topic: str) -> Any:
-        """根据话题名推断消息类型"""
-        topic_lower = topic.lower()
-        
-        # 延迟导入消息类型
+        """根据话题名推断消息类型 - 优先使用ros2 topic info获取"""
+        # 延迟导入
+        import subprocess
         from sensor_msgs.msg import LaserScan, Image, Imu
         from nav_msgs.msg import Odometry
         from geometry_msgs.msg import TransformStamped, Twist
-        
+
+        # 优先使用ros2 topic info获取类型
+        try:
+            result = subprocess.run(
+                ['ros2', 'topic', 'info', topic],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                output = result.stdout
+                for line in output.splitlines():
+                    if 'Type:' in line:
+                        type_str = line.split('Type:')[1].strip()
+                        if '/' in type_str:
+                            module_path = type_str.replace('/', '.')
+                            parts = module_path.rsplit('.', 1)
+                            module = __import__(parts[0], fromlist=[parts[1]])
+                            return getattr(module, parts[1])
+        except Exception:
+            pass
+
+        # 回退到根据话题名推断
+        topic_lower = topic.lower()
+
         if 'scan' in topic_lower:
             return LaserScan
         elif 'image' in topic_lower or 'camera' in topic_lower:
@@ -84,7 +107,7 @@ class DataCollector:
             return TransformStamped
         elif 'cmd_vel' in topic_lower or 'twist' in topic_lower:
             return Twist
-        
+
         return None
     
     def _create_callback(self, topic: str):
@@ -108,12 +131,14 @@ class DataCollector:
     def _serialize_message(self, msg) -> Dict[str, Any]:
         """序列化消息"""
         serialized = {}
-        
-        for attr_name in dir(msg):
-            if not attr_name.startswith('_'):
-                attr_value = getattr(msg, attr_name)
-                serialized[attr_name] = self._serialize_value(attr_value)
-        
+
+        field_names = getattr(msg, '__slots__', dir(msg))
+        for attr_name in field_names:
+            if attr_name.startswith('_'):
+                continue
+            attr_value = getattr(msg, attr_name)
+            serialized[attr_name] = self._serialize_value(attr_value)
+
         return serialized
     
     def _serialize_value(self, value) -> Any:
@@ -148,7 +173,9 @@ class DataCollector:
         # 延迟导入rclpy
         import rclpy
         if self._duration:
-            rclpy.spin_once(self._node, timeout_sec=self._duration)
+            end_time = self._start_time + self._duration
+            while rclpy.ok() and time.time() < end_time:
+                rclpy.spin_once(self._node, timeout_sec=0.1)
         else:
             rclpy.spin(self._node)
     

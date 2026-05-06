@@ -1,4 +1,4 @@
-#!/usr/bin/env python33
+#!/usr/bin/env python3
 """ROS2自动化数据采集与处理工具 - 一键运行脚本"""
 
 import os

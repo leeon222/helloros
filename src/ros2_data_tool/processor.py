@@ -50,8 +50,9 @@ class DataProcessor:
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
             
-            # 从文件名提取话题名
-            topic_name = file.split('_')[0]
+            base = file.replace('.pkl', '')
+            parts = base.rsplit('_', 2)
+            topic_name = parts[0] if len(parts) >= 3 else base
             self._data[topic_name] = data
         
         print(f"Loaded data for {len(self._data)} topics")
@@ -75,7 +76,7 @@ class DataProcessor:
         df = self._convert_to_dataframe(data)
         
         # 应用预处理步骤
-        df = self._clean_data(df)
+        df = self._clean_data(df, topic)
         df = self._remove_duplicates(df)
         df = self._filter_empty_messages(df)
         df = self._normalize_units(df, topic)
@@ -91,14 +92,14 @@ class DataProcessor:
         
         # 创建扁平化的字典列表
         flat_messages = []
-        for msg in messages:
+        for i, msg in enumerate(messages):
             flat_msg = self._flatten_dict(msg)
-            flat_msg['timestamp'] = timestamps[len(flat_messages)]
+            flat_msg['timestamp'] = timestamps[i]
             flat_messages.append(flat_msg)
         
         return pd.DataFrame(flat_messages)
     
-    def _flatten_dict(self, d: Dict, parent_key: str = '', sep: str = '_') -> Dict:
+    def _flatten_dict(self, d: Dict, parent_key: str = '', sep: str = '__') -> Dict:
         """扁平化字典 - 优化版本"""
         items = {}
         
@@ -137,7 +138,7 @@ class DataProcessor:
         
         return result
     
-    def _unflatten_dict(self, d: Dict, sep: str = '_') -> Dict:
+    def _unflatten_dict(self, d: Dict, sep: str = '__') -> Dict:
         """反扁平化字典"""
         result = {}
         for k, v in d.items():
@@ -150,16 +151,19 @@ class DataProcessor:
             current[parts[-1]] = v
         return result
     
-    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _clean_data(self, df: pd.DataFrame, topic: str = '') -> pd.DataFrame:
         """清洗数据：剔除NaN、无穷大、异常跳变"""
-        # 删除包含NaN或无穷大的行
         df_clean = df.replace([np.inf, -np.inf], np.nan).dropna()
-        
-        # 检测并删除异常跳变
+
+        topic_lower = topic.lower()
+        skip_cols = set()
+        if 'scan' in topic_lower:
+            skip_cols = {c for c in df_clean.columns if c.startswith('ranges_')}
+
         for col in df_clean.select_dtypes(include=[np.number]).columns:
-            if col != 'timestamp':
+            if col != 'timestamp' and col not in skip_cols:
                 df_clean = self._remove_outliers(df_clean, col)
-        
+
         return df_clean
     
     def _remove_outliers(self, df: pd.DataFrame, column: str) -> pd.DataFrame:
@@ -188,27 +192,21 @@ class DataProcessor:
     
     def _normalize_units(self, df: pd.DataFrame, topic: str) -> pd.DataFrame:
         """单位统一标准化"""
-        # 根据话题类型进行单位转换
         topic_lower = topic.lower()
-        
+
         if 'scan' in topic_lower:
-            # LaserScan: 角度转弧度，距离保持米
-            if 'angle_min' in df.columns:
-                df['angle_min'] = np.radians(df['angle_min'])
-            if 'angle_max' in df.columns:
-                df['angle_max'] = np.radians(df['angle_max'])
-            if 'angle_increment' in df.columns:
-                df['angle_increment'] = np.radians(df['angle_increment'])
-        
+            # LaserScan: ROS2 消息中 angle_min/max/increment 已经是弧度制，无需转换
+            # 距离单位保持米
+            pass
+
         elif 'imu' in topic_lower:
             # IMU: 确保角速度单位为rad/s，加速度单位为m/s²
-            # 假设数据已经是标准单位，这里只做验证
             pass
-        
+
         elif 'odom' in topic_lower:
             # Odometry: 确保位置单位为米，角度单位为弧度
             pass
-        
+
         return df
     
     def synchronize_data(self, target_frequency: float = None) -> Dict[str, List[Dict]]:
@@ -252,9 +250,7 @@ class DataProcessor:
         # 创建同步时间的DataFrame
         sync_df = pd.DataFrame({'timestamp': sync_timestamps})
         
-        # 对数值型列进行插值
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        sync_df = pd.merge_asof(sync_df, df[numeric_cols], on='timestamp', direction='nearest')
+        sync_df = pd.merge_asof(sync_df, df, on='timestamp', direction='nearest')
         
         # 转换回原始格式
         return self._convert_from_dataframe(sync_df)

@@ -50,8 +50,9 @@ class DataExporter:
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
             
-            # 从文件名提取话题名
-            topic_name = file.split('_')[0]
+            base = file.replace('.pkl', '')
+            parts = base.rsplit('_', 2)
+            topic_name = parts[0] if len(parts) >= 3 else base
             self._data[topic_name] = data
         
         print(f"Loaded data for {len(self._data)} topics")
@@ -236,7 +237,7 @@ class DataExporter:
         
         return df
     
-    def _flatten_dict(self, d: Dict, parent_key: str = '', sep: str = '_') -> Dict:
+    def _flatten_dict(self, d: Dict, parent_key: str = '', sep: str = '__') -> Dict:
         """扁平化字典"""
         items = []
         for k, v in d.items():
